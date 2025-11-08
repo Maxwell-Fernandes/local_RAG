@@ -59,5 +59,7 @@ htmlcov/
 cli.py
 main.py
 dashboard.html
-/docs/CLAUDE.md
+
+# Claude Code documentation (ignore in all directories)
+**/CLAUDE.md
 CLAUDE.md
