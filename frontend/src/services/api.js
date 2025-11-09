@@ -54,6 +54,11 @@ export const getDatabaseInfo = async () => {
   return response.data;
 };
 
+export const clearDatabase = async () => {
+  const response = await api.delete('/api/database/clear');
+  return response.data;
+};
+
 // Health Check
 export const healthCheck = async () => {
   const response = await api.get('/api/health');

@@ -3,32 +3,52 @@
  */
 
 import { useState, useEffect } from 'react'
-import { HiDatabase, HiChip, HiDocumentText, HiCollection, HiClock, HiCog } from 'react-icons/hi'
+import { HiDatabase, HiChip, HiDocumentText, HiCollection, HiClock, HiCog, HiTrash, HiExclamationCircle } from 'react-icons/hi'
 import { HiServerStack } from 'react-icons/hi2'
 import { SiOpenai } from 'react-icons/si'
-import { getDatabaseInfo } from '../services/api'
+import { getDatabaseInfo, clearDatabase } from '../services/api'
 import './Database.css'
 
 function Database() {
   const [dbInfo, setDbInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [clearing, setClearing] = useState(false)
+
+  const fetchDbInfo = async () => {
+    try {
+      setLoading(true)
+      const data = await getDatabaseInfo()
+      setDbInfo(data)
+      setError(null)
+    } catch (err) {
+      setError(err.message || 'Failed to load database information')
+      console.error('Database info error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchDbInfo = async () => {
-      try {
-        const data = await getDatabaseInfo()
-        setDbInfo(data)
-      } catch (err) {
-        setError(err.message || 'Failed to load database information')
-        console.error('Database info error:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchDbInfo()
   }, [])
+
+  const handleClearDatabase = async () => {
+    setClearing(true)
+    try {
+      const result = await clearDatabase()
+      alert(`Success: ${result.message}`)
+      setShowClearConfirm(false)
+      // Refresh database info
+      await fetchDbInfo()
+    } catch (err) {
+      alert(`Failed to clear database: ${err.message}`)
+      console.error('Clear database error:', err)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -58,10 +78,51 @@ function Database() {
   return (
     <div className="database-page">
       <div className="database-container">
+        {/* Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="modal-overlay" onClick={() => !clearing && setShowClearConfirm(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-icon warning">
+                <HiExclamationCircle />
+              </div>
+              <h3 className="modal-title">Clear Database?</h3>
+              <p className="modal-message">
+                This will permanently delete all {dbInfo?.total_documents || 0} documents from the database.
+                This action cannot be undone.
+              </p>
+              <div className="modal-actions">
+                <button
+                  className="modal-button cancel"
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={clearing}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="modal-button danger"
+                  onClick={handleClearDatabase}
+                  disabled={clearing}
+                >
+                  {clearing ? 'Clearing...' : 'Yes, Clear Database'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Overview Section */}
         <section className="db-section">
           <div className="section-header">
             <h2 className="section-title">Database Overview</h2>
+            <button
+              className="clear-db-button"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={loading || !dbInfo?.total_documents}
+              title={!dbInfo?.total_documents ? 'Database is already empty' : 'Clear all data from database'}
+            >
+              <HiTrash />
+              <span>Clear Database</span>
+            </button>
           </div>
 
           <div className="db-overview-grid">
