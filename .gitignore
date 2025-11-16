@@ -58,10 +58,10 @@ htmlcov/
 *.tmp
 *.temp
 
-# CLI reference (deprecated)
-cli.py
-main.py
-dashboard.html
+# CLI reference (deprecated - root level only)
+/cli.py
+/main.py
+/dashboard.html
 
 # Claude Code documentation (ignore in all directories)
 **/CLAUDE.md
