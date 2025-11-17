@@ -1,12 +1,4 @@
-"""
-Enhanced RAG service combining best features from main and feature branches.
-
-Features:
-- Query formatting for better semantic matching (from main)
-- Corrected cosine similarity calculation (from main)
-- Hybrid re-ranking with keyword boost (from feature)
-- Dependency injection support (from feature)
-"""
+"""Enhanced RAG (Retrieval-Augmented Generation) operations for LAQ search and chat."""
 
 import json
 from typing import List, Dict, Tuple, Optional
@@ -43,16 +35,14 @@ class RAGService:
         top_k: Optional[int] = None,
         apply_threshold: bool = True,
         use_reranking: bool = True,
-        use_query_formatting: bool = True,
     ) -> List[Dict]:
-        """Advanced search with query formatting and hybrid re-ranking.
+        """Advanced search for relevant LAQs with re-ranking.
 
         Args:
             query: Search query text
             top_k: Number of results to return (uses config default if None)
             apply_threshold: Whether to filter by similarity threshold
             use_reranking: Whether to apply keyword-based re-ranking
-            use_query_formatting: Format query to match embedding format
 
         Returns:
             List of search result dictionaries with metadata and scores
@@ -70,14 +60,8 @@ class RAGService:
             # Retrieve more results for re-ranking
             search_k = min(top_k * 3, 30) if use_reranking else top_k
 
-            # Format query to match embedding format (improves semantic matching)
-            if use_query_formatting:
-                formatted_query = f"Question: {query}\nAnswer: "
-            else:
-                formatted_query = query
-
             # Generate query embedding
-            query_embedding = self.embeddings.embed_text(formatted_query)
+            query_embedding = self.embeddings.embed_text(query)
 
             # Search database
             results = self.db.search(query_embedding, n_results=search_k)
@@ -93,16 +77,11 @@ class RAGService:
                 metadatas = results["metadatas"][0]
                 documents = results.get("documents", [[]])[0]
 
-            # Format results with corrected similarity calculation
+            # Format results
             formatted_results = []
             for i, doc_id in enumerate(ids):
                 distance = distances[i]
-
-                # ChromaDB with "cosine" metric returns squared L2 distance on normalized vectors
-                # Formula: squared_L2_distance = 2 * (1 - cosine_similarity)
-                # Therefore: cosine_similarity = 1 - (distance / 2)
-                cosine_similarity = 1 - (distance / 2)
-                similarity = max(0, min(100, cosine_similarity * 100))
+                similarity = (1 - distance) * 100
 
                 # Determine match quality
                 if similarity >= 80:
@@ -179,7 +158,7 @@ class RAGService:
             original_score = result['similarity']
             boosted_score = original_score + keyword_boost + freshness_boost
 
-            # Store both scores for transparency
+            # Store both scores
             result['original_similarity'] = original_score
             result['similarity'] = min(100, round(boosted_score, 2))
 
@@ -205,17 +184,11 @@ class RAGService:
             raise ValueError("Query cannot be empty")
 
         try:
-            # Retrieve relevant LAQs with all enhancements
+            # Retrieve relevant LAQs
             if top_k is None:
                 top_k = self.config.chat_top_k
 
-            results = self.search(
-                query,
-                top_k=top_k,
-                apply_threshold=True,
-                use_reranking=True,
-                use_query_formatting=True
-            )
+            results = self.search(query, top_k=top_k, apply_threshold=True, use_reranking=True)
 
             if not results:
                 return (
@@ -268,19 +241,12 @@ class RAGService:
             except:
                 attachments_text = ""
 
-            # Include both original and boosted similarity for transparency
-            original_sim = result.get('original_similarity', result['similarity'])
-            boosted_sim = result['similarity']
-            similarity_info = f"Relevance: {boosted_sim}%"
-            if original_sim != boosted_sim:
-                similarity_info += f" (semantic: {original_sim:.1f}%, boosted)"
-
             part = f"""
 LAQ #{meta.get('laq_num', 'N/A')} ({meta.get('type', 'N/A')}) - {meta.get('date', 'N/A')}
 Minister: {meta.get('minister', 'N/A')}
 Question: {meta.get('question', 'N/A')}
 Answer: {meta.get('answer', 'N/A')}{attachments_text}
-{similarity_info}
+Relevance: {result['similarity']}%
 """
             context_parts.append(part.strip())
 
@@ -298,7 +264,7 @@ Answer: {meta.get('answer', 'N/A')}{attachments_text}
         """
         prompt = f"""You are an expert assistant for Legislative Assembly Questions (LAQs). Your role is to provide accurate, factual answers based on the LAQ database.
 
-Below are the most relevant LAQs from the database (ranked by relevance with hybrid semantic + keyword matching):
+Below are the most relevant LAQs from the database (ranked by relevance):
 
 {context}
 
